@@ -1,0 +1,36 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.egg-info/
+.eggs/
+*.egg
+
+# Virtual environments
+venv/
+env/
+.venv/
+
+# Environment variables (DO NOT COMMIT)
+.env
+.env.local
+
+# Model files (large - do not commit base models)
+models/finance_llama/
+models/*.safetensors
+
+# Data (raw/processed - can be regenerated)
+data/raw/
+data/processed/
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb
+
+# OS
+.DS_Store
+*.log
+
+# IDE
+.vscode/
+.idea/

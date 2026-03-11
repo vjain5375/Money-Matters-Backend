@@ -1,0 +1,332 @@
+transaction,amount,category
+zomato order,350,Food
+uber ride,220,Transport
+amazon purchase,1200,Shopping
+electricity bill,1800,Utilities
+swiggy delivery,280,Food
+ola cab,175,Transport
+flipkart order,2499,Shopping
+water bill payment,450,Utilities
+dominos pizza,599,Food
+rapido bike,85,Transport
+myntra fashion,1899,Shopping
+gas bill payment,780,Utilities
+mcdonalds meal,350,Food
+metro card recharge,500,Transport
+ajio clothing,999,Shopping
+internet bill,899,Utilities
+starbucks coffee,475,Food
+uber auto,150,Transport
+snapdeal order,649,Shopping
+phone bill recharge,599,Utilities
+pizza hut order,750,Food
+bus ticket booking,120,Transport
+meesho purchase,399,Shopping
+dth recharge,350,Utilities
+kfc chicken,520,Food
+train ticket,850,Transport
+nykaa beauty,1150,Shopping
+broadband bill,1099,Utilities
+burger king meal,425,Food
+flight ticket booking,4500,Transport
+pepperfry furniture,3500,Shopping
+municipal tax payment,2500,Utilities
+haldirams snacks,280,Food
+parking charges,100,Transport
+bigbasket groceries,1850,Shopping
+society maintenance,3500,Utilities
+cafe coffee day,320,Food
+toll plaza charges,150,Transport
+reliance digital,5999,Shopping
+electricity meter reading,150,Utilities
+ice cream parlour,180,Food
+auto rickshaw fare,60,Transport
+croma electronics,8999,Shopping
+lpg gas cylinder,950,Utilities
+restaurant dinner,1200,Food
+cab booking,380,Transport
+online shopping order,1750,Shopping
+house rent payment,15000,Utilities
+street food vendor,150,Food
+bike fuel petrol,500,Transport
+zomato gold subscription,299,Food
+grocery store weekly,2200,Shopping
+uber pool ride,130,Transport
+swiggy instamart,780,Food
+ola rental hourly,600,Transport
+barbeque nation dinner,1800,Food
+jio prepaid recharge,399,Utilities
+amazon prime membership,1499,Shopping
+local bus pass,450,Transport
+chai point order,120,Food
+tata cliq shopping,3200,Shopping
+airtel postpaid bill,799,Utilities
+blinkit quick delivery,550,Food
+rapido auto fare,95,Transport
+subway sandwich,350,Food
+firstcry baby products,1999,Shopping
+water purifier service,1200,Utilities
+wedding gift shopping,5000,Shopping
+intercity bus ticket,700,Transport
+baskin robbins ice cream,380,Food
+hdfc insurance premium,4500,Utilities
+amazon fresh groceries,1650,Food
+local train season pass,1200,Transport
+breakfast cafe bill,250,Food
+decathlon sports gear,2800,Shopping
+electricity quarterly bill,3200,Utilities
+uber eats delivery,450,Food
+highway toll charges,200,Transport
+lenskart eyewear,2100,Shopping
+society water charges,600,Utilities
+biryani by kilo order,650,Food
+shuttle bus fare,40,Transport
+shoppers stop clothing,3800,Shopping
+cooking gas refill,900,Utilities
+tea stall payment,50,Food
+emi payment appliance,2500,Utilities
+zepto grocery delivery,890,Food
+daily metro commute,30,Transport
+canteen lunch office,180,Food
+mobile screen repair,1500,Shopping
+property tax annual,5000,Utilities
+saravana bhavan dinner,550,Food
+airport cab transfer,1200,Transport
+birthday cake order,800,Food
+gym membership monthly,1500,Utilities
+weekend movie tickets,600,Entertainment
+petrol station fill,1800,Transport
+vegetable market weekly,400,Food
+ikea home furnishing,4500,Shopping
+power backup battery,3500,Utilities
+milk dairy monthly,900,Food
+car service center,3500,Transport
+hospital bill payment,8500,Health
+doctor consultation fee,800,Health
+netflix monthly plan,649,Subscriptions
+spotify premium,199,Subscriptions
+apollo pharmacy medicines,1200,Health
+pvr cinema tickets,800,Entertainment
+bookmyshow concert,2500,Entertainment
+hotstar subscription,299,Subscriptions
+clinic visit charges,500,Health
+diagnostic lab test,1500,Health
+youtube premium family,189,Subscriptions
+dentist appointment,1800,Health
+inox movie booking,600,Entertainment
+disney plus hotstar,299,Subscriptions
+medical store purchase,450,Health
+amazon prime annual,1499,Subscriptions
+comedy show tickets,1200,Entertainment
+blood test report,800,Health
+x ray charges,600,Health
+gaming top up pubg,200,Entertainment
+apple music subscription,99,Subscriptions
+medplus pharmacy,750,Health
+stand up comedy night,1500,Entertainment
+norton antivirus annual,999,Subscriptions
+eye checkup ophthalmologist,1200,Health
+night club entry,2000,Entertainment
+chatgpt plus monthly,1700,Subscriptions
+nursing home charges,12000,Health
+bar drinks evening,1800,Entertainment
+adobe creative cloud,4230,Subscriptions
+surgery follow up,3000,Health
+amusement park tickets,1500,Entertainment
+github pro monthly,84,Subscriptions
+birth delivery charges,35000,Health
+escape room activity,1800,Entertainment
+notion pro plan,450,Subscriptions
+vaccination charges,500,Health
+music concert tickets,5000,Entertainment
+discord nitro monthly,479,Subscriptions
+maternity consultation,2500,Health
+ten pin bowling,800,Entertainment
+canva pro subscription,500,Subscriptions
+icu charges daily,5000,Health
+laser tag gaming,600,Entertainment
+microsoft 365 annual,6199,Subscriptions
+physiotherapy session,1200,Health
+go karting activity,1200,Entertainment
+zee5 subscription,999,Subscriptions
+medicine course purchase,2200,Health
+pub crawl night,2500,Entertainment
+duolingo subscription,135,Subscriptions
+dental filling charges,3500,Health
+weekend trip activity,3000,Entertainment
+crunchyroll anime monthly,179,Subscriptions
+monthly health insurance,2500,Health
+gaming subscription xbox,499,Entertainment
+dropbox plus annual,999,Subscriptions
+emergency ambulance,3500,Health
+karaoke night expenditure,1500,Entertainment
+grammarly premium,799,Subscriptions
+doctor fees specialist,1500,Health
+water park entry,1200,Entertainment
+openai api subscription,1700,Subscriptions
+hospital admission charges,20000,Health
+museum entry fee,300,Entertainment
+ps plus gaming,499,Subscriptions
+pathology test charges,1200,Health
+theatre play tickets,1800,Entertainment
+linkedin premium,2400,Subscriptions
+injection vaccination clinic,300,Health
+fun zone activity,900,Entertainment
+trello business plan,420,Subscriptions
+chemist medicine shop,650,Health
+laser show tickets,1500,Entertainment
+evernote premium plan,499,Subscriptions
+online doctor consultation,399,Health
+adventure sports entry,3500,Entertainment
+figma professional plan,1200,Subscriptions
+pharmacy bill medicines,1800,Health
+open mic comedy,800,Entertainment
+zoom pro monthly,1300,Subscriptions
+birth bill hospital,28000,Health
+medical check up annual,3500,Health
+maternity hospital bill,45000,Health
+nursing home delivery,32000,Health
+vansh birth bill,30000,Health
+baby birth charges,25000,Health
+delivery hospital charges,38000,Health
+health checkup package,2500,Health
+full body checkup,4500,Health
+blood pressure doctor,600,Health
+diabetes clinic visit,900,Health
+ayush hospital treatment,2000,Health
+homeopathy clinic fees,800,Health
+physiotherapy charges monthly,3600,Health
+mental health therapy,2000,Health
+yoga studio membership,2000,Entertainment
+fitness class fees,1500,Entertainment
+cricket match ticket,500,Entertainment
+ipl match tickets,3000,Entertainment
+football ground booking,800,Entertainment
+badminton court booking,400,Entertainment
+swimming pool monthly,1200,Entertainment
+chess tournament entry,300,Entertainment
+art gallery visit,500,Entertainment
+virtual reality game,1500,Entertainment
+escape room mystery,2000,Entertainment
+laser quest gaming,700,Entertainment
+bowling alley game,600,Entertainment
+trampoline park entry,800,Entertainment
+painting class fees,1500,Entertainment
+cooking class workshop,2000,Entertainment
+pottery class session,1200,Entertainment
+dance class monthly,3000,Entertainment
+music class fees,2000,Entertainment
+photography workshop,2500,Entertainment
+airtel broadband monthly,999,Utilities
+jio fiber plan,699,Utilities
+bsnl landline bill,450,Utilities
+vi postpaid bill,849,Utilities
+electricity advance payment,5000,Utilities
+water board bill,350,Utilities
+property tax payment,8000,Utilities
+society club charges,2000,Utilities
+generator fuel charges,1500,Utilities
+solar panel maintenance,3000,Utilities
+
+uber ride,220,Transport
+amazon purchase,1200,Shopping
+electricity bill,1800,Utilities
+swiggy delivery,280,Food
+ola cab,175,Transport
+flipkart order,2499,Shopping
+water bill payment,450,Utilities
+dominos pizza,599,Food
+rapido bike,85,Transport
+myntra fashion,1899,Shopping
+gas bill payment,780,Utilities
+mcdonalds meal,350,Food
+metro card recharge,500,Transport
+ajio clothing,999,Shopping
+internet bill,899,Utilities
+starbucks coffee,475,Food
+uber auto,150,Transport
+snapdeal order,649,Shopping
+phone bill recharge,599,Utilities
+pizza hut order,750,Food
+bus ticket booking,120,Transport
+meesho purchase,399,Shopping
+dth recharge,350,Utilities
+kfc chicken,520,Food
+train ticket,850,Transport
+nykaa beauty,1150,Shopping
+broadband bill,1099,Utilities
+burger king meal,425,Food
+flight ticket booking,4500,Transport
+pepperfry furniture,3500,Shopping
+municipal tax payment,2500,Utilities
+haldirams snacks,280,Food
+parking charges,100,Transport
+bigbasket groceries,1850,Shopping
+society maintenance,3500,Utilities
+cafe coffee day,320,Food
+toll plaza charges,150,Transport
+reliance digital,5999,Shopping
+electricity meter reading,150,Utilities
+ice cream parlour,180,Food
+auto rickshaw fare,60,Transport
+croma electronics,8999,Shopping
+lpg gas cylinder,950,Utilities
+restaurant dinner,1200,Food
+cab booking,380,Transport
+online shopping order,1750,Shopping
+house rent payment,15000,Utilities
+street food vendor,150,Food
+bike fuel petrol,500,Transport
+zomato gold subscription,299,Food
+grocery store weekly,2200,Shopping
+uber pool ride,130,Transport
+netflix subscription,649,Utilities
+swiggy instamart,780,Shopping
+ola rental hourly,600,Transport
+barbeque nation dinner,1800,Food
+jio prepaid recharge,399,Utilities
+amazon prime membership,1499,Shopping
+local bus pass,450,Transport
+chai point order,120,Food
+tata cliq shopping,3200,Shopping
+airtel postpaid bill,799,Utilities
+blinkit quick delivery,550,Shopping
+rapido auto fare,95,Transport
+subway sandwich,350,Food
+firstcry baby products,1999,Shopping
+water purifier service,1200,Utilities
+wedding gift shopping,5000,Shopping
+intercity bus ticket,700,Transport
+baskin robbins ice cream,380,Food
+hdfc insurance premium,4500,Utilities
+amazon fresh groceries,1650,Shopping
+local train season pass,1200,Transport
+breakfast cafe bill,250,Food
+decathlon sports gear,2800,Shopping
+electricity quarterly bill,3200,Utilities
+uber eats delivery,450,Food
+highway toll charges,200,Transport
+lenskart eyewear,2100,Shopping
+society water charges,600,Utilities
+biryani by kilo order,650,Food
+shuttle bus fare,40,Transport
+shoppers stop clothing,3800,Shopping
+cooking gas refill,900,Utilities
+tea stall payment,50,Food
+emi payment appliance,2500,Utilities
+zepto grocery delivery,890,Shopping
+daily metro commute,30,Transport
+canteen lunch office,180,Food
+mobile screen repair,1500,Shopping
+property tax annual,5000,Utilities
+saravana bhavan dinner,550,Food
+airport cab transfer,1200,Transport
+birthday cake order,800,Food
+gym membership monthly,1500,Utilities
+weekend movie tickets,600,Shopping
+petrol station fill,1800,Transport
+vegetable market weekly,400,Food
+ikea home furnishing,4500,Shopping
+power backup battery,3500,Utilities
+milk dairy monthly,900,Food
+car service center,3500,Transport
