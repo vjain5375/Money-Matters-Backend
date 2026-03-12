@@ -95,6 +95,25 @@ async def preload_model():
             f"Model not found: {e}\n"
             f"Please run 'python src/train_model.py' before starting the API."
         )
+    # Start keep-alive background task
+    import asyncio
+    asyncio.create_task(keep_alive())
+
+
+async def keep_alive():
+    """Ping /health every 10 minutes to prevent Render free tier from sleeping."""
+    import httpx
+    import asyncio
+    await asyncio.sleep(60)  # wait 1 min after startup
+    while True:
+        try:
+            render_url = os.getenv("RENDER_EXTERNAL_URL", "http://localhost:10000")
+            async with httpx.AsyncClient() as client:
+                await client.get(f"{render_url}/health", timeout=10)
+            logger.info("Keep-alive ping sent.")
+        except Exception:
+            pass  # silently ignore ping failures
+        await asyncio.sleep(600)  # ping every 10 minutes
 
 
 # =========================================================================
