@@ -1,0 +1,331 @@
+transaction,category
+zomato order,Food
+uber ride,Transport
+amazon purchase,Shopping
+electricity bill,Utilities
+swiggy delivery,Food
+ola cab,Transport
+flipkart order,Shopping
+water bill payment,Utilities
+dominos pizza,Food
+rapido bike,Transport
+myntra fashion,Shopping
+gas bill payment,Utilities
+mcdonalds meal,Food
+metro card recharge,Transport
+ajio clothing,Shopping
+internet bill,Utilities
+starbucks coffee,Food
+uber auto,Transport
+snapdeal order,Shopping
+phone bill recharge,Utilities
+pizza hut order,Food
+bus ticket booking,Transport
+meesho purchase,Shopping
+dth recharge,Utilities
+kfc chicken,Food
+train ticket,Transport
+nykaa beauty,Shopping
+broadband bill,Utilities
+burger king meal,Food
+flight ticket booking,Transport
+pepperfry furniture,Shopping
+municipal tax payment,Utilities
+haldirams snacks,Food
+parking charges,Transport
+bigbasket groceries,Shopping
+society maintenance,Utilities
+cafe coffee day,Food
+toll plaza charges,Transport
+reliance digital,Shopping
+electricity meter reading,Utilities
+ice cream parlour,Food
+auto rickshaw fare,Transport
+croma electronics,Shopping
+lpg gas cylinder,Utilities
+restaurant dinner,Food
+cab booking,Transport
+online shopping order,Shopping
+house rent payment,Utilities
+street food vendor,Food
+bike fuel petrol,Transport
+zomato gold subscription,Food
+grocery store weekly,Shopping
+uber pool ride,Transport
+swiggy instamart,Food
+ola rental hourly,Transport
+barbeque nation dinner,Food
+jio prepaid recharge,Utilities
+amazon prime membership,Shopping
+local bus pass,Transport
+chai point order,Food
+tata cliq shopping,Shopping
+airtel postpaid bill,Utilities
+blinkit quick delivery,Food
+rapido auto fare,Transport
+subway sandwich,Food
+firstcry baby products,Shopping
+water purifier service,Utilities
+wedding gift shopping,Shopping
+intercity bus ticket,Transport
+baskin robbins ice cream,Food
+hdfc insurance premium,Utilities
+amazon fresh groceries,Food
+local train season pass,Transport
+breakfast cafe bill,Food
+decathlon sports gear,Shopping
+electricity quarterly bill,Utilities
+uber eats delivery,Food
+highway toll charges,Transport
+lenskart eyewear,Shopping
+society water charges,Utilities
+biryani by kilo order,Food
+shuttle bus fare,Transport
+shoppers stop clothing,Shopping
+cooking gas refill,Utilities
+tea stall payment,Food
+emi payment appliance,Utilities
+zepto grocery delivery,Food
+daily metro commute,Transport
+canteen lunch office,Food
+mobile screen repair,Shopping
+property tax annual,Utilities
+saravana bhavan dinner,Food
+airport cab transfer,Transport
+birthday cake order,Food
+gym membership monthly,Utilities
+weekend movie tickets,Entertainment
+petrol station fill,Transport
+vegetable market weekly,Food
+ikea home furnishing,Shopping
+power backup battery,Utilities
+milk dairy monthly,Food
+car service center,Transport
+hospital bill payment,Health
+doctor consultation fee,Health
+netflix monthly plan,Subscriptions
+spotify premium,Subscriptions
+apollo pharmacy medicines,Health
+pvr cinema tickets,Entertainment
+bookmyshow concert,Entertainment
+hotstar subscription,Subscriptions
+clinic visit charges,Health
+diagnostic lab test,Health
+youtube premium family,Subscriptions
+dentist appointment,Health
+inox movie booking,Entertainment
+disney plus hotstar,Subscriptions
+medical store purchase,Health
+amazon prime annual,Subscriptions
+comedy show tickets,Entertainment
+blood test report,Health
+x ray charges,Health
+gaming top up pubg,Entertainment
+apple music subscription,Subscriptions
+medplus pharmacy,Health
+stand up comedy night,Entertainment
+norton antivirus annual,Subscriptions
+eye checkup ophthalmologist,Health
+night club entry,Entertainment
+chatgpt plus monthly,Subscriptions
+nursing home charges,Health
+bar drinks evening,Entertainment
+adobe creative cloud,Subscriptions
+surgery follow up,Health
+amusement park tickets,Entertainment
+github pro monthly,Subscriptions
+birth delivery charges,Health
+escape room activity,Entertainment
+notion pro plan,Subscriptions
+vaccination charges,Health
+music concert tickets,Entertainment
+discord nitro monthly,Subscriptions
+maternity consultation,Health
+ten pin bowling,Entertainment
+canva pro subscription,Subscriptions
+icu charges daily,Health
+laser tag gaming,Entertainment
+microsoft annual,Subscriptions
+physiotherapy session,Health
+go karting activity,Entertainment
+zee subscription,Subscriptions
+medicine course purchase,Health
+pub crawl night,Entertainment
+duolingo subscription,Subscriptions
+dental filling charges,Health
+weekend trip activity,Entertainment
+crunchyroll anime monthly,Subscriptions
+monthly health insurance,Health
+gaming subscription xbox,Entertainment
+dropbox plus annual,Subscriptions
+emergency ambulance,Health
+karaoke night expenditure,Entertainment
+grammarly premium,Subscriptions
+doctor fees specialist,Health
+water park entry,Entertainment
+openai api subscription,Subscriptions
+hospital admission charges,Health
+museum entry fee,Entertainment
+ps plus gaming,Subscriptions
+pathology test charges,Health
+theatre play tickets,Entertainment
+linkedin premium,Subscriptions
+injection vaccination clinic,Health
+fun zone activity,Entertainment
+trello business plan,Subscriptions
+chemist medicine shop,Health
+laser show tickets,Entertainment
+evernote premium plan,Subscriptions
+online doctor consultation,Health
+adventure sports entry,Entertainment
+figma professional plan,Subscriptions
+pharmacy bill medicines,Health
+open mic comedy,Entertainment
+zoom pro monthly,Subscriptions
+birth bill hospital,Health
+medical check up annual,Health
+maternity hospital bill,Health
+nursing home delivery,Health
+vansh birth bill,Health
+baby birth charges,Health
+delivery hospital charges,Health
+health checkup package,Health
+full body checkup,Health
+blood pressure doctor,Health
+diabetes clinic visit,Health
+ayush hospital treatment,Health
+homeopathy clinic fees,Health
+physiotherapy charges monthly,Health
+mental health therapy,Health
+yoga studio membership,Entertainment
+fitness class fees,Entertainment
+cricket match ticket,Entertainment
+ipl match tickets,Entertainment
+football ground booking,Entertainment
+badminton court booking,Entertainment
+swimming pool monthly,Entertainment
+chess tournament entry,Entertainment
+art gallery visit,Entertainment
+virtual reality game,Entertainment
+escape room mystery,Entertainment
+laser quest gaming,Entertainment
+bowling alley game,Entertainment
+trampoline park entry,Entertainment
+painting class fees,Entertainment
+cooking class workshop,Entertainment
+pottery class session,Entertainment
+dance class monthly,Entertainment
+music class fees,Entertainment
+photography workshop,Entertainment
+airtel broadband monthly,Utilities
+jio fiber plan,Utilities
+bsnl landline bill,Utilities
+vi postpaid bill,Utilities
+electricity advance payment,Utilities
+water board bill,Utilities
+property tax payment,Utilities
+society club charges,Utilities
+generator fuel charges,Utilities
+solar panel maintenance,Utilities
+uber ride,Transport
+amazon purchase,Shopping
+electricity bill,Utilities
+swiggy delivery,Food
+ola cab,Transport
+flipkart order,Shopping
+water bill payment,Utilities
+dominos pizza,Food
+rapido bike,Transport
+myntra fashion,Shopping
+gas bill payment,Utilities
+mcdonalds meal,Food
+metro card recharge,Transport
+ajio clothing,Shopping
+internet bill,Utilities
+starbucks coffee,Food
+uber auto,Transport
+snapdeal order,Shopping
+phone bill recharge,Utilities
+pizza hut order,Food
+bus ticket booking,Transport
+meesho purchase,Shopping
+dth recharge,Utilities
+kfc chicken,Food
+train ticket,Transport
+nykaa beauty,Shopping
+broadband bill,Utilities
+burger king meal,Food
+flight ticket booking,Transport
+pepperfry furniture,Shopping
+municipal tax payment,Utilities
+haldirams snacks,Food
+parking charges,Transport
+bigbasket groceries,Shopping
+society maintenance,Utilities
+cafe coffee day,Food
+toll plaza charges,Transport
+reliance digital,Shopping
+electricity meter reading,Utilities
+ice cream parlour,Food
+auto rickshaw fare,Transport
+croma electronics,Shopping
+lpg gas cylinder,Utilities
+restaurant dinner,Food
+cab booking,Transport
+online shopping order,Shopping
+house rent payment,Utilities
+street food vendor,Food
+bike fuel petrol,Transport
+zomato gold subscription,Food
+grocery store weekly,Shopping
+uber pool ride,Transport
+netflix subscription,Utilities
+swiggy instamart,Shopping
+ola rental hourly,Transport
+barbeque nation dinner,Food
+jio prepaid recharge,Utilities
+amazon prime membership,Shopping
+local bus pass,Transport
+chai point order,Food
+tata cliq shopping,Shopping
+airtel postpaid bill,Utilities
+blinkit quick delivery,Shopping
+rapido auto fare,Transport
+subway sandwich,Food
+firstcry baby products,Shopping
+water purifier service,Utilities
+wedding gift shopping,Shopping
+intercity bus ticket,Transport
+baskin robbins ice cream,Food
+hdfc insurance premium,Utilities
+amazon fresh groceries,Shopping
+local train season pass,Transport
+breakfast cafe bill,Food
+decathlon sports gear,Shopping
+electricity quarterly bill,Utilities
+uber eats delivery,Food
+highway toll charges,Transport
+lenskart eyewear,Shopping
+society water charges,Utilities
+biryani by kilo order,Food
+shuttle bus fare,Transport
+shoppers stop clothing,Shopping
+cooking gas refill,Utilities
+tea stall payment,Food
+emi payment appliance,Utilities
+zepto grocery delivery,Shopping
+daily metro commute,Transport
+canteen lunch office,Food
+mobile screen repair,Shopping
+property tax annual,Utilities
+saravana bhavan dinner,Food
+airport cab transfer,Transport
+birthday cake order,Food
+gym membership monthly,Utilities
+weekend movie tickets,Shopping
+petrol station fill,Transport
+vegetable market weekly,Food
+ikea home furnishing,Shopping
+power backup battery,Utilities
+milk dairy monthly,Food
+car service center,Transport

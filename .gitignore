@@ -2,35 +2,27 @@
 __pycache__/
 *.py[cod]
 *.pyo
-*.egg-info/
-.eggs/
-*.egg
-
-# Virtual environments
+.venv/
 venv/
 env/
-.venv/
+*.egg-info/
+dist/
+build/
 
-# Environment variables (DO NOT COMMIT)
+# Environment
 .env
 .env.local
+.env.production
 
-# Model files (large - do not commit base models)
-models/finance_llama/
-models/*.safetensors
-
-# Data (raw/processed - can be regenerated)
-data/raw/
-data/processed/
+# Models — too large for GitHub (4-8GB)
+models/
 
 # Jupyter
 .ipynb_checkpoints/
-*.ipynb
 
 # OS
 .DS_Store
-*.log
+Thumbs.db
 
-# IDE
-.vscode/
-.idea/
+# HuggingFace cache
+.cache/

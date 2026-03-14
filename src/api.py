@@ -200,6 +200,19 @@ class AnalyticsResponse(BaseModel):
     category_details: dict
 
 
+# -- /get-advice schemas --------------------------------------------------
+class AdviceRequest(BaseModel):
+    expenses: dict = Field(
+        ...,
+        description="Category-to-amount spending dict.",
+        example={"Food": 3500, "Shopping": 8000, "Transport": 1200},
+    )
+
+
+class AdviceResponse(BaseModel):
+    advice: str = Field(..., description="AI-generated financial advice.")
+
+
 # =========================================================================
 # ENDPOINT 1: GET / -- System Info
 # =========================================================================
@@ -229,12 +242,14 @@ async def root():
         "modules": [
             "Expense Classifier",
             "Expense Analytics",
+            "Finance LLaMA Advisor",
         ],
         "endpoints": {
-            "classify":  "POST /classify  -- Classify a single transaction",
-            "analyze":   "POST /analyze   -- Analyze a batch of transactions",
-            "health":    "GET  /health    -- API health check",
-            "docs":      "GET  /docs      -- Swagger UI",
+            "classify":   "POST /classify    -- Classify a single transaction",
+            "analyze":    "POST /analyze     -- Analyze a batch of transactions",
+            "get_advice": "POST /get-advice  -- AI financial advice from LLaMA",
+            "health":     "GET  /health      -- API health check",
+            "docs":       "GET  /docs        -- Swagger UI",
         },
         "timestamp": datetime.utcnow().isoformat() + "Z",
     }
@@ -413,6 +428,73 @@ async def analyze_transactions(transactions: list[TransactionRecord]):
     )
 
     return AnalyticsResponse(**report)
+
+
+# =========================================================================
+# ENDPOINT 5: POST /get-advice -- Finance LLaMA AI Advisor
+# =========================================================================
+@app.post(
+    "/get-advice",
+    response_model=AdviceResponse,
+    summary="AI Financial Advice",
+    description=(
+        "Generates personalised financial advice using the fine-tuned "
+        "Finance LLaMA (LLaMA-3-8B + LoRA) model based on a spending breakdown."
+    ),
+    tags=["LLM Endpoints"],
+)
+async def get_advice(request: AdviceRequest):
+    """
+    POST /get-advice
+
+    Pass a category-to-amount dict and receive AI-generated financial advice.
+
+    Request body:
+        { "expenses": {"Food": 3500, "Shopping": 8000, "Transport": 1200} }
+
+    Response:
+        { "advice": "You are spending 53% on Shopping which is quite high..." }
+
+    Note: First call loads the LLaMA model (~160MB adapters) — expect 30-60s cold start.
+    """
+    logger.info(f"POST /get-advice  [expenses: {list(request.expenses.keys())}]")
+
+    if not request.expenses:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Expenses dict cannot be empty.",
+        )
+
+    try:
+        # Import lazily so the server starts fast even without GPU
+        import importlib.util
+        import sys as _sys
+        advisor_path = os.path.join(
+            os.path.dirname(__file__), "..", "llm", "inference", "advisor.py"
+        )
+        # Use a cached module reference to avoid reloading the 8B model every call
+        if "_finance_advisor" not in _sys.modules:
+            spec = importlib.util.spec_from_file_location("_finance_advisor", advisor_path)
+            advisor_mod = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(advisor_mod)
+            _sys.modules["_finance_advisor"] = advisor_mod
+        else:
+            advisor_mod = _sys.modules["_finance_advisor"]
+
+        advice = advisor_mod.generate_advice(request.expenses)
+        logger.info(f"  -> Advice generated ({len(advice)} chars)")
+        return AdviceResponse(advice=advice)
+
+    except FileNotFoundError as e:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"LLaMA adapter not found: {str(e)}",
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Advice generation failed: {str(e)}",
+        )
 
 
 # =========================================================================
