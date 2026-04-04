@@ -38,6 +38,15 @@ from pydantic import BaseModel, Field, validator
 from src.predict import predict_transaction, load_artifacts
 from src.expense_analytics import analyze_from_records
 
+# Stock analysis router (Indian stocks — NSE/BSE)
+try:
+    from stock.router import router as stock_router
+    _stock_router_available = True
+except Exception as e:
+    import traceback
+    traceback.print_exc()
+    _stock_router_available = False
+
 
 # =========================================================================
 # Logger
@@ -73,6 +82,15 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+# -- Register Stock Router ------------------------------------------------
+# Mounted at /stock/* — independent module, won't break if deps missing
+if _stock_router_available:
+    app.include_router(stock_router)
+    logger.info("Stock analysis router registered at /stock/*")
+else:
+    logger.warning("Stock router not available — install yfinance & pandas-ta")
 
 
 # =========================================================================
