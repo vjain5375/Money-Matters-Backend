@@ -74,10 +74,17 @@ app = FastAPI(
 )
 
 # -- CORS Middleware -------------------------------------------------------
-# Allow requests from any origin (open for web dashboard / mobile app)
+# Restricted origins for production security
+ALLOWED_ORIGINS = [
+    "http://localhost:5173",          # Local Dev (Vite default)
+    "https://moneymattersai.tech",    # Main Domain
+    "https://www.moneymattersai.tech",
+    "https://dashboard.moneymattersai.tech",
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],       # In production: restrict to your frontend domain
+    allow_origins=ALLOWED_ORIGINS if os.getenv("ENV") == "production" else ["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -124,13 +131,13 @@ async def keep_alive():
     import asyncio
     await asyncio.sleep(60)  # wait 1 min after startup
     while True:
-        try:
-            render_url = os.getenv("RENDER_EXTERNAL_URL", "http://localhost:10000")
+            # Use RENDER_EXTERNAL_URL or fallback to the current Render subdomain
+            render_url = os.getenv("RENDER_EXTERNAL_URL") or "https://money-matters-backend-pc4i.onrender.com"
             async with httpx.AsyncClient() as client:
                 await client.get(f"{render_url}/health", timeout=10)
-            logger.info("Keep-alive ping sent.")
-        except Exception:
-            pass  # silently ignore ping failures
+            logger.info(f"Keep-alive ping sent to {render_url}")
+        except Exception as e:
+            logger.error(f"Keep-alive ping failed: {str(e)}")
         await asyncio.sleep(600)  # ping every 10 minutes
 
 
@@ -260,6 +267,7 @@ async def root():
         "modules": [
             "Expense Classifier",
             "Expense Analytics",
+            "Stock Analysis (NSE/BSE)",
             "Finance LLaMA Advisor",
         ],
         "endpoints": {

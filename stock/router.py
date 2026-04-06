@@ -13,6 +13,8 @@ Routes:
 """
 
 import logging
+import asyncio
+from concurrent.futures import ThreadPoolExecutor
 from fastapi import APIRouter, HTTPException, Query, status
 
 from stock.fundamentals  import get_fundamentals
@@ -24,6 +26,9 @@ from stock.predictor     import predict
 logger = logging.getLogger("MoneyMattersAI.Stock.Router")
 
 router = APIRouter(prefix="/stock", tags=["Stock Analysis"])
+
+# Create a shared executor for parallel tasks
+executor = ThreadPoolExecutor(max_workers=10)
 
 
 def _nse_symbol(symbol: str) -> str:
@@ -126,25 +131,43 @@ async def predict_signal(ticker: str):
 
 # ── GET /stock/full/{ticker} ──────────────────────────────────────────────
 @router.get("/full/{ticker}", summary="All Data in One Call")
-async def full_analysis(ticker: str, period: str = Query("1y")):
+async def full_analysis(ticker: str, period: str = Query("1y"), company_name: str = None):
     """
-    Fetches fundamentals + technical + sentiment + prediction in one request.
-    Used by the dashboard for initial load.
+    Combines fundamentals, technicals, and sentiment into one report.
+    Fetches data in parallel to reduce latency.
     """
     symbol = _nse_symbol(ticker)
-    logger.info(f"GET /stock/full/{symbol}")
-
-    f_data = get_fundamentals(symbol)
-    company_name = f_data.get("company_name")
-    t_data = get_technical_data(symbol, period=period)
-    s_data = get_sentiment(symbol, company_name=company_name)
-    p_data = predict(f_data, t_data, s_data)
-
-    return {
-        "ticker":       symbol,
-        "company_name": company_name,
-        "fundamentals": f_data,
-        "technical":    t_data,
-        "sentiment":    s_data,
-        "prediction":   p_data,
-    }
+    loop = asyncio.get_event_loop()
+    
+    try:
+        # Step 1: Fetch Fundamental and Technical data in parallel
+        # They are independent and the main bottlenecks
+        tasks = [
+            loop.run_in_executor(executor, get_fundamentals, symbol),
+            loop.run_in_executor(executor, get_technical_data, symbol, period)
+        ]
+        
+        f_data, t_data = await asyncio.gather(*tasks)
+        
+        # Step 2: Fetch Sentiment (depends on company_name for better accuracy)
+        # Note: We still fetch it even if fundamentals failed
+        comp_name = company_name or f_data.get("company_name")
+        s_data = await loop.run_in_executor(executor, get_sentiment, symbol, comp_name)
+        
+        # Step 3: Predict
+        p_data = predict(f_data, t_data, s_data)
+        
+        return {
+            "symbol": symbol,
+            "fundamentals": f_data,
+            "technicals": t_data,
+            "sentiment": s_data,
+            "prediction": p_data
+        }
+    except Exception as e:
+        logger.error(f"Full analysis failed for {symbol}: {str(e)}", exc_info=True)
+        return {
+            "symbol": symbol,
+            "error": str(e),
+            "message": "Failed to complete full stock analysis."
+        }
