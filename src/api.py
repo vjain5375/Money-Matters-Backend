@@ -131,6 +131,7 @@ async def keep_alive():
     import asyncio
     await asyncio.sleep(60)  # wait 1 min after startup
     while True:
+        try:
             # Use RENDER_EXTERNAL_URL or fallback to the current Render subdomain
             render_url = os.getenv("RENDER_EXTERNAL_URL") or "https://money-matters-backend-pc4i.onrender.com"
             async with httpx.AsyncClient() as client:
