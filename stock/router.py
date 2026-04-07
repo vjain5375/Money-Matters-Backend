@@ -14,6 +14,7 @@ Routes:
 
 import logging
 import asyncio
+import time
 from concurrent.futures import ThreadPoolExecutor
 from fastapi import APIRouter, HTTPException, Query, status
 
@@ -29,6 +30,19 @@ router = APIRouter(prefix="/stock", tags=["Stock Analysis"])
 
 # Create a shared executor for parallel tasks
 executor = ThreadPoolExecutor(max_workers=10)
+
+# Simple in-memory TTL cache for heavy endpoints
+_cache: dict = {}
+_CACHE_TTL = 300  # 5 minutes
+
+def _cache_get(key: str):
+    entry = _cache.get(key)
+    if entry and (time.time() - entry["ts"]) < _CACHE_TTL:
+        return entry["data"]
+    return None
+
+def _cache_set(key: str, data):
+    _cache[key] = {"ts": time.time(), "data": data}
 
 
 def _nse_symbol(symbol: str) -> str:
@@ -190,35 +204,36 @@ async def full_analysis(ticker: str, period: str = Query("1y"), company_name: st
 @router.get("/market-overview", summary="Market Overview: Indices + Gainers/Losers")
 async def market_overview():
     """
-    Returns:
-      - indices: Nifty 50, Sensex, Nifty Bank, Nifty IT
-      - top_gainers: Top 5 gainers from popular NSE stocks (today)
-      - top_losers: Top 5 losers from popular NSE stocks (today)
-      - trending: Popular / most-searched stocks
+    Returns Nifty/Sensex indices, top gainers/losers & trending stocks.
+    Results are cached for 5 minutes to avoid repeated slow fetches.
     """
     import yfinance as yf
     import pandas as pd
 
-    # Nifty indices + benchmark tickers
-    INDEX_TICKERS = {
-        "NIFTY 50":    "^NSEI",
-        "SENSEX":      "^BSESN",
-        "NIFTY Bank":  "^NSEBANK",
-        "NIFTY IT":    "^CNXIT",
+    # Return cached result if fresh
+    cached = _cache_get("market_overview")
+    if cached:
+        return {**cached, "cached": True}
+
+    # ── All tickers in one batch download ─────────────────────────────────
+    INDEX_MAP = {
+        "NIFTY 50":   "^NSEI",
+        "SENSEX":     "^BSESN",
+        "NIFTY Bank": "^NSEBANK",
+        "NIFTY IT":   "^CNXIT",
     }
 
-    # Popular NSE stocks to compute gainers/losers from
     POPULAR = [
         "RELIANCE.NS", "TCS.NS", "INFY.NS", "HDFCBANK.NS", "ICICIBANK.NS",
         "SBIN.NS", "WIPRO.NS", "BAJAJFINSV.NS", "AXISBANK.NS", "LT.NS",
         "KOTAKBANK.NS", "MARUTI.NS", "TATAMOTORS.NS", "HCLTECH.NS", "ASIANPAINT.NS",
         "SUNPHARMA.NS", "TITAN.NS", "BHARTIARTL.NS", "NTPC.NS", "POWERGRID.NS",
         "ADANIENT.NS", "ULTRACEMCO.NS", "HINDUNILVR.NS", "ITC.NS", "ZOMATO.NS",
-        "NESTLEIND.NS", "TATASTEEL.NS", "JSWSTEEL.NS", "COALINDIA.NS", "ONGC.NS",
+        "TATASTEEL.NS", "JSWSTEEL.NS", "COALINDIA.NS", "ONGC.NS",
     ]
 
-    TRENDING_DISPLAY = [
-        {"symbol": "RELIANCE.NS", "name": "Reliance Industries"},
+    TRENDING_META = [
+        {"symbol": "RELIANCE.NS", "name": "Reliance"},
         {"symbol": "TCS.NS",      "name": "TCS"},
         {"symbol": "INFY.NS",     "name": "Infosys"},
         {"symbol": "ZOMATO.NS",   "name": "Zomato"},
@@ -228,119 +243,97 @@ async def market_overview():
         {"symbol": "HDFCBANK.NS", "name": "HDFC Bank"},
     ]
 
-    loop = asyncio.get_event_loop()
+    def _fetch_all():
+        # All tickers in ONE batch download — minimizes Yahoo API round trips
+        index_tickers = list(INDEX_MAP.values())
+        all_tickers = index_tickers + POPULAR  # indices + popular stocks
 
-    def _fetch_indices():
-        results = {}
-        for name, ticker in INDEX_TICKERS.items():
+        try:
+            raw = yf.download(
+                all_tickers, period="5d", interval="1d",
+                progress=False, auto_adjust=True, group_by="ticker"
+            )
+        except Exception as e:
+            logger.error(f"Batch download failed: {e}")
+            return {}, [], []
+
+        def get_close_change(ticker):
+            """Extract (current_price, pct_change) from raw batch data."""
             try:
-                hist = yf.download(ticker, period="2d", interval="1d", progress=False, auto_adjust=True)
-                if hist is None or hist.empty:
-                    continue
-                if isinstance(hist.columns, pd.MultiIndex):
-                    hist.columns = hist.columns.get_level_values(0)
-                hist = hist.dropna()
-                if len(hist) >= 2:
-                    prev = float(hist["Close"].iloc[-2])
-                    curr = float(hist["Close"].iloc[-1])
-                    chg = curr - prev
-                    chg_pct = (chg / prev) * 100 if prev else 0
-                    results[name] = {
-                        "price": round(curr, 2),
-                        "change": round(chg, 2),
-                        "change_pct": round(chg_pct, 2),
-                    }
-                elif len(hist) == 1:
-                    curr = float(hist["Close"].iloc[-1])
-                    results[name] = {"price": round(curr, 2), "change": 0, "change_pct": 0}
-            except Exception as e:
-                logger.warning(f"Index fetch failed for {name}: {e}")
-        return results
+                if isinstance(raw.columns, pd.MultiIndex):
+                    if ticker not in raw.columns.get_level_values(0):
+                        return None, None
+                    df = raw[ticker][["Close"]].dropna()
+                else:
+                    df = raw[["Close"]].dropna()
+                if len(df) < 2:
+                    return None, None
+                prev = float(df["Close"].iloc[-2])
+                curr = float(df["Close"].iloc[-1])
+                pct = ((curr - prev) / prev * 100) if prev else 0
+                return round(curr, 2), round(pct, 2)
+            except Exception:
+                return None, None
 
-    def _fetch_movers():
+        # Build indices dict
+        indices = {}
+        for name, ticker in INDEX_MAP.items():
+            price, pct = get_close_change(ticker)
+            if price:
+                curr = price
+                prev_price = curr / (1 + pct / 100) if pct != -100 else curr
+                indices[name] = {
+                    "price": curr,
+                    "change": round(curr - prev_price, 2),
+                    "change_pct": pct,
+                }
+
+        # Build movers list
         movers = []
-        try:
-            # Batch download all popular stocks — single request
-            raw = yf.download(
-                POPULAR, period="2d", interval="1d",
-                progress=False, auto_adjust=True, group_by="ticker"
-            )
-            for ticker in POPULAR:
-                try:
-                    if ticker in raw.columns.get_level_values(0):
-                        df = raw[ticker].dropna()
-                    else:
-                        continue
-                    if len(df) < 2:
-                        continue
-                    prev = float(df["Close"].iloc[-2])
-                    curr = float(df["Close"].iloc[-1])
-                    if prev == 0:
-                        continue
-                    chg_pct = ((curr - prev) / prev) * 100
-                    movers.append({
-                        "symbol": ticker,
-                        "name": ticker.replace(".NS", ""),
-                        "price": round(curr, 2),
-                        "change": round(curr - prev, 2),
-                        "change_pct": round(chg_pct, 2),
-                    })
-                except Exception:
-                    continue
-        except Exception as e:
-            logger.warning(f"Batch movers fetch failed: {e}")
-        return movers
-
-    def _fetch_trending_prices():
-        results = []
-        try:
-            tickers = [s["symbol"] for s in TRENDING_DISPLAY]
-            raw = yf.download(
-                tickers, period="2d", interval="1d",
-                progress=False, auto_adjust=True, group_by="ticker"
-            )
-            for item in TRENDING_DISPLAY:
-                t = item["symbol"]
-                try:
-                    if t in raw.columns.get_level_values(0):
-                        df = raw[t].dropna()
-                    else:
-                        results.append({**item, "price": None, "change_pct": 0})
-                        continue
-                    if len(df) >= 2:
-                        prev = float(df["Close"].iloc[-2])
-                        curr = float(df["Close"].iloc[-1])
-                        chg_pct = ((curr - prev) / prev) * 100 if prev else 0
-                        results.append({
-                            **item,
-                            "price": round(curr, 2),
-                            "change_pct": round(chg_pct, 2),
-                        })
-                    elif len(df) == 1:
-                        results.append({**item, "price": round(float(df["Close"].iloc[-1]), 2), "change_pct": 0})
-                except Exception:
-                    results.append({**item, "price": None, "change_pct": 0})
-        except Exception as e:
-            logger.warning(f"Trending prices fetch failed: {e}")
-        return results
-
-    try:
-        indices_task   = loop.run_in_executor(executor, _fetch_indices)
-        movers_task    = loop.run_in_executor(executor, _fetch_movers)
-        trending_task  = loop.run_in_executor(executor, _fetch_trending_prices)
-
-        indices, movers, trending = await asyncio.gather(indices_task, movers_task, trending_task)
+        for ticker in POPULAR:
+            price, pct = get_close_change(ticker)
+            if price is not None and pct is not None:
+                movers.append({
+                    "symbol": ticker,
+                    "name": ticker.replace(".NS", ""),
+                    "price": price,
+                    "change_pct": pct,
+                })
 
         movers_sorted = sorted(movers, key=lambda x: x["change_pct"], reverse=True)
         top_gainers = movers_sorted[:5]
-        top_losers  = list(reversed(movers_sorted))[:5]
+        top_losers  = movers_sorted[-5:][::-1]
 
-        return {
+        # Build trending list
+        trending = []
+        for item in TRENDING_META:
+            price, pct = get_close_change(item["symbol"])
+            trending.append({
+                "symbol": item["symbol"],
+                "name": item["name"],
+                "price": price,
+                "change_pct": pct if pct is not None else 0,
+            })
+
+        return indices, top_gainers, top_losers, trending
+
+    try:
+        loop = asyncio.get_event_loop()
+        result = await loop.run_in_executor(executor, _fetch_all)
+
+        if len(result) == 4:
+            indices, top_gainers, top_losers, trending = result
+        else:
+            indices, top_gainers, top_losers, trending = {}, [], [], []
+
+        response = {
             "indices": indices,
             "top_gainers": top_gainers,
             "top_losers": top_losers,
             "trending": trending,
         }
+        _cache_set("market_overview", response)
+        return {**response, "cached": False}
 
     except Exception as e:
         logger.error(f"Market overview failed: {e}", exc_info=True)
