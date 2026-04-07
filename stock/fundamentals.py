@@ -7,11 +7,16 @@ Includes: P/E, P/B, ROE, Debt/Equity, EPS, Market Cap, 52W range,
 """
 
 import logging
+import time
 from typing import Optional
 import yfinance as yf
 import pandas as pd
 
 logger = logging.getLogger("MoneyMattersAI.Stock.Fundamentals")
+
+# ── Rate-limit retry config ─────────────────────────────────────────────
+MAX_RETRIES = 3
+BASE_DELAY  = 2          # seconds — doubles each retry (2s, 4s, 8s)
 
 
 def _nse_ticker(symbol: str) -> str:
@@ -20,6 +25,43 @@ def _nse_ticker(symbol: str) -> str:
     if sym.endswith(".NS") or sym.endswith(".BO"):
         return sym
     return f"{sym}.NS"
+
+
+def _fetch_ticker_info(ticker_sym: str) -> tuple:
+    """
+    Fetch yf.Ticker.info with retry + exponential backoff.
+    Returns (ticker_object, info_dict).
+    Raises RuntimeError if all retries fail.
+    """
+    last_err = None
+    for attempt in range(1, MAX_RETRIES + 1):
+        try:
+            ticker = yf.Ticker(ticker_sym)
+            info = ticker.info
+            # Yahoo returns an almost-empty dict on rate-limit (no useful keys)
+            if info and (info.get("regularMarketPrice") or info.get("currentPrice")
+                         or info.get("longName") or info.get("shortName")):
+                return ticker, info
+            # Check for explicit error messages from yfinance
+            err_msg = str(info) if info else "empty response"
+            if "Too Many Requests" in err_msg or "Rate" in err_msg:
+                raise RuntimeError(f"Rate limited (attempt {attempt})")
+            # Might just be a lesser-known ticker — return what we got
+            return ticker, info or {}
+        except Exception as e:
+            last_err = e
+            if attempt < MAX_RETRIES:
+                wait = BASE_DELAY * (2 ** (attempt - 1))
+                logger.warning(
+                    f"yfinance info retry {attempt}/{MAX_RETRIES} for {ticker_sym}: "
+                    f"{e} — waiting {wait}s"
+                )
+                time.sleep(wait)
+            else:
+                logger.error(
+                    f"yfinance info failed after {MAX_RETRIES} retries for {ticker_sym}: {e}"
+                )
+    raise RuntimeError(f"All {MAX_RETRIES} retries exhausted: {last_err}")
 
 
 def get_fundamentals(symbol: str) -> dict:
@@ -64,17 +106,18 @@ def get_fundamentals(symbol: str) -> dict:
     }
 
     try:
-        ticker = yf.Ticker(ticker_sym)
-        info = ticker.info
+        ticker, info = _fetch_ticker_info(ticker_sym)
 
         if not info or info.get("regularMarketPrice") is None and info.get("currentPrice") is None:
             # Try BSE fallback
             if not ticker_sym.endswith(".BO"):
                 ticker_sym_bo = ticker_sym.replace(".NS", ".BO")
-                ticker = yf.Ticker(ticker_sym_bo)
-                info = ticker.info
-                if info:
-                    result["ticker"] = ticker_sym_bo
+                try:
+                    ticker, info = _fetch_ticker_info(ticker_sym_bo)
+                    if info:
+                        result["ticker"] = ticker_sym_bo
+                except Exception:
+                    pass  # BSE fallback failed too — continue with empty data
 
         def safe(key, default=None):
             val = info.get(key, default)

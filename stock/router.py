@@ -157,8 +157,21 @@ async def full_analysis(ticker: str, period: str = Query("1y"), company_name: st
         # Step 3: Predict
         p_data = predict(f_data, t_data, s_data)
         
+        # Step 4: Fallback — patch price & name from technicals if fundamentals failed
+        if f_data.get("error") or f_data.get("current_price") is None:
+            # Use latest close from technical candles as price fallback
+            if t_data.get("candles"):
+                last_close = t_data["candles"][-1].get("close")
+                if last_close is not None:
+                    f_data["current_price"] = last_close
+            # Use ticker as company name fallback
+            if not f_data.get("company_name"):
+                f_data["company_name"] = symbol.replace(".NS", "").replace(".BO", "")
+        
         return {
             "symbol": symbol,
+            "company_name": f_data.get("company_name") or symbol,
+            "ticker": symbol,
             "fundamentals": f_data,
             "technicals": t_data,
             "sentiment": s_data,
