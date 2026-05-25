@@ -85,26 +85,25 @@ app = FastAPI(
 #   EXTRA_ORIGINS = https://other-domain.com  (optional, comma-separated)
 
 def _build_allowed_origins() -> list[str]:
-    """Build CORS whitelist from env vars. Returns empty list if FRONTEND_URL not set."""
-    frontend_url = os.getenv("FRONTEND_URL", "").strip()
-    if not frontend_url:
-        return []  # Signal: use allow_origins=["*"]
-
+    """Build CORS whitelist from env vars and default production domains."""
     origins = set()
 
-    # Always include localhost for dev/testing
+    # Always include localhost and custom production domains
     origins.update([
         "http://localhost:3000",
         "http://localhost:5173",
         "http://127.0.0.1:3000",
         "http://127.0.0.1:5173",
+        "https://moneymattersai.tech",
+        "https://www.moneymattersai.tech",
     ])
 
-    # Primary frontend URL (Vercel, custom domain, etc.)
-    primary_origin = frontend_url.rstrip("/")
-    origins.add(primary_origin)
-    if primary_origin.startswith("https://") and not primary_origin.startswith("https://www."):
-        origins.add(primary_origin.replace("https://", "https://www."))
+    frontend_url = os.getenv("FRONTEND_URL", "").strip()
+    if frontend_url:
+        primary_origin = frontend_url.rstrip("/")
+        origins.add(primary_origin)
+        if primary_origin.startswith("https://") and not primary_origin.startswith("https://www."):
+            origins.add(primary_origin.replace("https://", "https://www."))
 
     # Any additional origins (comma-separated)
     extra = os.getenv("EXTRA_ORIGINS", "").strip()
