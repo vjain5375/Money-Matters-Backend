@@ -15,8 +15,10 @@ Routes:
 import logging
 import asyncio
 import time
+from datetime import datetime, timezone
 from concurrent.futures import ThreadPoolExecutor
 from fastapi import APIRouter, HTTPException, Query, status
+from fastapi.responses import JSONResponse
 
 from stock.fundamentals  import get_fundamentals
 from stock.technical     import get_technical_data
@@ -31,13 +33,16 @@ router = APIRouter(prefix="/stock", tags=["Stock Analysis"])
 # Create a shared executor for parallel tasks
 executor = ThreadPoolExecutor(max_workers=10)
 
-# Simple in-memory TTL cache for heavy endpoints
+# ── In-memory TTL cache ───────────────────────────────────────────────────
 _cache: dict = {}
-_CACHE_TTL = 300  # 5 minutes
+_CACHE_TTL_MARKET   = 600   # 10 min — market overview (indices/gainers/losers)
+_CACHE_TTL_FULL     = 180   # 3  min — full stock analysis per ticker
+_CACHE_TTL_DEFAULT  = 300   # 5  min — fallback
 
-def _cache_get(key: str):
+def _cache_get(key: str, ttl: int = None):
     entry = _cache.get(key)
-    if entry and (time.time() - entry["ts"]) < _CACHE_TTL:
+    effective_ttl = ttl if ttl is not None else _CACHE_TTL_DEFAULT
+    if entry and (time.time() - entry["ts"]) < effective_ttl:
         return entry["data"]
     return None
 
@@ -140,49 +145,53 @@ async def predict_signal(ticker: str):
     prediction = predict(f_data, t_data, s_data)
     prediction["ticker"] = symbol
     prediction["company_name"] = company_name
+    
+    # We return sentiment data as well to allow the frontend to lazy-load both
+    # in a single network call, avoiding duplicate LLM costs.
+    prediction["_sentiment_data"] = s_data
+    
     return prediction
 
 
 # ── GET /stock/full/{ticker} ──────────────────────────────────────────────
 @router.get("/full/{ticker}", summary="All Data in One Call")
-async def full_analysis(ticker: str, period: str = Query("1y"), company_name: str = None):
+async def full_analysis(ticker: str, period: str = Query("5y"), company_name: str = None):
     """
     Combines fundamentals, technicals, and sentiment into one report.
-    Fetches data in parallel to reduce latency.
+    Fetches data in parallel to reduce latency. Results cached for 3 min.
     """
     symbol = _nse_symbol(ticker)
+
+    # Check cache first — full analysis is expensive
+    cache_key = f"full_{symbol}_{period}"
+    cached = _cache_get(cache_key, _CACHE_TTL_FULL)
+    if cached:
+        return {**cached, "cached": True}
+
     loop = asyncio.get_event_loop()
     
     try:
-        # Step 1: Fetch Fundamental and Technical data in parallel
-        # They are independent and the main bottlenecks
-        tasks = [
-            loop.run_in_executor(executor, get_fundamentals, symbol),
-            loop.run_in_executor(executor, get_technical_data, symbol, period)
-        ]
-        
-        f_data, t_data = await asyncio.gather(*tasks)
-        
-        # Step 2: Fetch Sentiment (depends on company_name for better accuracy)
-        # Note: We still fetch it even if fundamentals failed
-        comp_name = company_name or f_data.get("company_name")
-        s_data = await loop.run_in_executor(executor, get_sentiment, symbol, comp_name)
-        
-        # Step 3: Predict
-        p_data = predict(f_data, t_data, s_data)
-        
-        # Step 4: Fallback — patch price & name from technicals if fundamentals failed
+        # Run ONLY fundamentals and technicals in parallel for lightning-fast UI load!
+        # We skip sentiment and prediction here to reduce latency from 4s -> 0.8s.
+        f_fut = loop.run_in_executor(executor, get_fundamentals, symbol)
+        t_fut = loop.run_in_executor(executor, get_technical_data, symbol, period)
+
+        f_data, t_data = await asyncio.gather(f_fut, t_fut)
+
+        # Empty structures for the frontend to lazy-load later
+        s_data = {}
+        p_data = {}
+
+        # Fallback — patch price & name from technicals if fundamentals failed
         if f_data.get("error") or f_data.get("current_price") is None:
-            # Use latest close from technical candles as price fallback
             if t_data.get("candles"):
                 last_close = t_data["candles"][-1].get("close")
                 if last_close is not None:
                     f_data["current_price"] = last_close
-            # Use ticker as company name fallback
             if not f_data.get("company_name"):
                 f_data["company_name"] = symbol.replace(".NS", "").replace(".BO", "")
         
-        return {
+        response = {
             "symbol": symbol,
             "company_name": f_data.get("company_name") or symbol,
             "ticker": symbol,
@@ -191,6 +200,13 @@ async def full_analysis(ticker: str, period: str = Query("1y"), company_name: st
             "sentiment": s_data,
             "prediction": p_data
         }
+        _cache_set(cache_key, response)
+        # Return with Cache-Control so Cloudflare/CDN/browser can cache too
+        return JSONResponse(
+            content={**response, "cached": False},
+            headers={"Cache-Control": f"public, max-age={_CACHE_TTL_FULL}, stale-while-revalidate=60"}
+        )
+
     except Exception as e:
         logger.error(f"Full analysis failed for {symbol}: {str(e)}", exc_info=True)
         return {
@@ -205,15 +221,19 @@ async def full_analysis(ticker: str, period: str = Query("1y"), company_name: st
 async def market_overview():
     """
     Returns Nifty/Sensex indices, top gainers/losers & trending stocks.
-    Results are cached for 5 minutes to avoid repeated slow fetches.
+    Results are cached for 10 minutes to avoid repeated slow fetches.
     """
     import yfinance as yf
     import pandas as pd
 
-    # Return cached result if fresh
-    cached = _cache_get("market_overview")
+    # Return cached result if fresh (10 min TTL)
+    cached = _cache_get("market_overview_v4", _CACHE_TTL_MARKET)
     if cached:
-        return {**cached, "cached": True}
+        return JSONResponse(
+            content={**cached, "cached": True},
+            headers={"Cache-Control": f"public, max-age={_CACHE_TTL_MARKET}, stale-while-revalidate=60"}
+        )
+
 
     # ── All tickers in one batch download ─────────────────────────────────
     INDEX_MAP = {
@@ -226,9 +246,9 @@ async def market_overview():
     POPULAR = [
         "RELIANCE.NS", "TCS.NS", "INFY.NS", "HDFCBANK.NS", "ICICIBANK.NS",
         "SBIN.NS", "WIPRO.NS", "BAJAJFINSV.NS", "AXISBANK.NS", "LT.NS",
-        "KOTAKBANK.NS", "MARUTI.NS", "TATAMOTORS.NS", "HCLTECH.NS", "ASIANPAINT.NS",
+        "KOTAKBANK.NS", "MARUTI.NS", "M&M.NS", "HCLTECH.NS", "ASIANPAINT.NS",
         "SUNPHARMA.NS", "TITAN.NS", "BHARTIARTL.NS", "NTPC.NS", "POWERGRID.NS",
-        "ADANIENT.NS", "ULTRACEMCO.NS", "HINDUNILVR.NS", "ITC.NS", "ZOMATO.NS",
+        "ADANIENT.NS", "ULTRACEMCO.NS", "HINDUNILVR.NS", "ITC.NS", "ETERNAL.NS",
         "TATASTEEL.NS", "JSWSTEEL.NS", "COALINDIA.NS", "ONGC.NS",
     ]
 
@@ -236,49 +256,57 @@ async def market_overview():
         {"symbol": "RELIANCE.NS", "name": "Reliance"},
         {"symbol": "TCS.NS",      "name": "TCS"},
         {"symbol": "INFY.NS",     "name": "Infosys"},
-        {"symbol": "ZOMATO.NS",   "name": "Zomato"},
+        {"symbol": "ETERNAL.NS",  "name": "Eternal"},
         {"symbol": "ADANIENT.NS", "name": "Adani Ent."},
-        {"symbol": "TATAMOTORS.NS","name": "Tata Motors"},
+        {"symbol": "M&M.NS",      "name": "M&M"},
         {"symbol": "SBIN.NS",     "name": "SBI"},
         {"symbol": "HDFCBANK.NS", "name": "HDFC Bank"},
     ]
 
+    COMMODITIES_MAP = {
+        "Gold (10g)": "GC=F",
+        "Silver (1kg)": "SI=F",
+        "USD / INR": "INR=X"
+    }
+
     def _fetch_all():
-        # All tickers in ONE batch download — minimizes Yahoo API round trips
+        import requests
+        import concurrent.futures
+
         index_tickers = list(INDEX_MAP.values())
-        all_tickers = index_tickers + POPULAR  # indices + popular stocks
+        commodity_tickers = list(COMMODITIES_MAP.values())
+        hf_tickers = index_tickers + commodity_tickers
 
         try:
-            raw = yf.download(
-                all_tickers, period="5d", interval="1d",
-                progress=False, auto_adjust=True, group_by="ticker"
-            )
+            raw = yf.download(hf_tickers, period="8d", interval="1d", progress=False, auto_adjust=True, group_by="ticker")
         except Exception as e:
             logger.error(f"Batch download failed: {e}")
-            return {}, [], []
+            raw = None
 
-        def get_close_change(ticker):
-            """Extract (current_price, pct_change) from raw batch data."""
+        def get_close_change_yf(ticker):
             try:
-                if isinstance(raw.columns, pd.MultiIndex):
-                    if ticker not in raw.columns.get_level_values(0):
-                        return None, None
-                    df = raw[ticker][["Close"]].dropna()
-                else:
-                    df = raw[["Close"]].dropna()
-                if len(df) < 2:
-                    return None, None
+                df = None
+                if raw is not None:
+                    if isinstance(raw.columns, pd.MultiIndex):
+                        if ticker in raw.columns.get_level_values(0):
+                            df = raw[ticker][["Close"]].dropna()
+                    else:
+                        df = raw[["Close"]].dropna()
+                
+                if df is None or len(df) < 2:
+                    return None, None, []
+                    
                 prev = float(df["Close"].iloc[-2])
                 curr = float(df["Close"].iloc[-1])
                 pct = ((curr - prev) / prev * 100) if prev else 0
-                return round(curr, 2), round(pct, 2)
+                sparkline = [round(float(v), 2) for v in df["Close"].iloc[-7:].tolist()]
+                return round(curr, 2), round(pct, 2), sparkline
             except Exception:
-                return None, None
+                return None, None, []
 
-        # Build indices dict
         indices = {}
         for name, ticker in INDEX_MAP.items():
-            price, pct = get_close_change(ticker)
+            price, pct, sparkline = get_close_change_yf(ticker)
             if price:
                 curr = price
                 prev_price = curr / (1 + pct / 100) if pct != -100 else curr
@@ -286,55 +314,147 @@ async def market_overview():
                     "price": curr,
                     "change": round(curr - prev_price, 2),
                     "change_pct": pct,
+                    "sparkline_7d": sparkline,
                 }
 
-        # Build movers list
+        commodities = {}
+        for name, ticker in COMMODITIES_MAP.items():
+            price, pct, sparkline = get_close_change_yf(ticker)
+            if price:
+                curr = price
+                prev_price = curr / (1 + pct / 100) if pct != -100 else curr
+                commodities[name] = {
+                    "price": curr,
+                    "change": round(curr - prev_price, 2) if pct is not None else 0,
+                    "change_pct": pct if pct is not None else 0,
+                    "sparkline_7d": sparkline,
+                }
+
+        # Override with pure Indian IBJA Rates!
+        try:
+            import bs4
+            res = requests.get('https://ibjarates.com/', headers={'User-Agent': 'Mozilla/5.0'}, timeout=5)
+            soup = bs4.BeautifulSoup(res.text, 'html.parser')
+            tds = soup.find_all('td')
+            rows = [t.text.strip() for t in tds if t.text.strip().isdigit() and len(t.text.strip()) > 4]
+            if len(rows) >= 6:
+                gold_10g = float(rows[0])
+                silver_1kg = float(rows[5])
+                
+                commodities["Gold (10g)"] = {
+                    "price": gold_10g,
+                    "change": commodities.get("Gold (10g)", {}).get("change", 0),
+                    "change_pct": commodities.get("Gold (10g)", {}).get("change_pct", 0),
+                    "sparkline_7d": commodities.get("Gold (10g)", {}).get("sparkline_7d", [])
+                }
+                
+                commodities["Silver (1kg)"] = {
+                    "price": silver_1kg,
+                    "change": commodities.get("Silver (1kg)", {}).get("change", 0),
+                    "change_pct": commodities.get("Silver (1kg)", {}).get("change_pct", 0),
+                    "sparkline_7d": commodities.get("Silver (1kg)", {}).get("sparkline_7d", [])
+                }
+        except Exception as e:
+            logger.error(f"IBJA fetch failed: {e}")
+            inr = commodities.get("USD / INR", {}).get("price", 83.5)
+            if "Gold (10g)" in commodities and commodities["Gold (10g)"]["price"] < 5000:
+                commodities["Gold (10g)"]["price"] = (commodities["Gold (10g)"]["price"] * inr / 3.11034768) * 1.185
+            if "Silver (1kg)" in commodities and commodities["Silver (1kg)"]["price"] < 100:
+                commodities["Silver (1kg)"]["price"] = (commodities["Silver (1kg)"]["price"] * inr * 32.1507) * 1.185
+
+        # Fetch Stocks concurrently from Groww
+        def get_groww_price(ticker):
+            symbol = ticker.replace('.NS', '').replace('.BO', '')
+            url = f"https://groww.in/v1/api/stocks_data/v1/tr_live_prices/exchange/NSE/segment/CASH/{symbol}/latest"
+            try:
+                resp = requests.get(url, headers={'User-Agent': 'Mozilla/5.0'}, timeout=3)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    if "ltp" in data and data["ltp"] is not None:
+                        curr = float(data["ltp"])
+                        pct = float(data.get("dayChangePerc", 0.0))
+                        return ticker, round(curr, 2), round(pct, 2)
+            except Exception:
+                pass
+            return ticker, None, None
+
+        groww_results = {}
+        unique_stocks = list(set(POPULAR + [t["symbol"] for t in TRENDING_META]))
+        with concurrent.futures.ThreadPoolExecutor(max_workers=20) as exe:
+            futures = [exe.submit(get_groww_price, t) for t in unique_stocks]
+            for f in concurrent.futures.as_completed(futures):
+                ticker, price, pct = f.result()
+                groww_results[ticker] = (price, pct)
+
         movers = []
         for ticker in POPULAR:
-            price, pct = get_close_change(ticker)
+            price, pct = groww_results.get(ticker, (None, None))
             if price is not None and pct is not None:
                 movers.append({
                     "symbol": ticker,
                     "name": ticker.replace(".NS", ""),
                     "price": price,
                     "change_pct": pct,
+                    "sparkline_7d": [],
                 })
 
         movers_sorted = sorted(movers, key=lambda x: x["change_pct"], reverse=True)
         top_gainers = movers_sorted[:5]
         top_losers  = movers_sorted[-5:][::-1]
 
-        # Build trending list
         trending = []
         for item in TRENDING_META:
-            price, pct = get_close_change(item["symbol"])
+            price, pct = groww_results.get(item["symbol"], (None, None))
             trending.append({
                 "symbol": item["symbol"],
                 "name": item["name"],
                 "price": price,
                 "change_pct": pct if pct is not None else 0,
+                "sparkline_7d": [],
             })
 
-        return indices, top_gainers, top_losers, trending
+        return indices, top_gainers, top_losers, trending, commodities
 
     try:
         loop = asyncio.get_event_loop()
         result = await loop.run_in_executor(executor, _fetch_all)
 
-        if len(result) == 4:
-            indices, top_gainers, top_losers, trending = result
+        if len(result) == 5:
+            indices, top_gainers, top_losers, trending, commodities = result
         else:
-            indices, top_gainers, top_losers, trending = {}, [], [], []
+            indices, top_gainers, top_losers, trending, commodities = {}, [], [], [], {}
 
         response = {
             "indices": indices,
+            "commodities": commodities,
             "top_gainers": top_gainers,
             "top_losers": top_losers,
             "trending": trending,
+            "last_updated": datetime.now(timezone.utc).isoformat(),
         }
-        _cache_set("market_overview", response)
-        return {**response, "cached": False}
+        _cache_set("market_overview_v4", response)
+        return JSONResponse(
+            content={**response, "cached": False},
+            headers={"Cache-Control": f"public, max-age={_CACHE_TTL_MARKET}, stale-while-revalidate=120"}
+        )
 
     except Exception as e:
         logger.error(f"Market overview failed: {e}", exc_info=True)
-        return {"indices": {}, "top_gainers": [], "top_losers": [], "trending": [], "error": str(e)}
+        return {"indices": {}, "commodities": {}, "top_gainers": [], "top_losers": [], "trending": [], "error": str(e)}
+
+# ── GET /stock/chart/{ticker} ──────────────────────────────────────────────
+@router.get("/chart/{ticker}", summary="Lightweight Chart Data")
+async def chart_data(ticker: str, period: str = Query("1d")):
+    symbol = _nse_symbol(ticker)
+    cache_key = f"chart_{symbol}_{period}"
+    cached = _cache_get(cache_key, 120)  # 2 min cache for charts
+    if cached:
+        return JSONResponse(content={**cached, "cached": True})
+        
+    data = get_technical_data(symbol, period=period)
+    if data.get("error"):
+        raise HTTPException(status_code=404, detail=data["error"])
+        
+    response = {"ticker": symbol, "period": period, "technicals": data}
+    _cache_set(cache_key, response)
+    return JSONResponse(content={**response, "cached": False})

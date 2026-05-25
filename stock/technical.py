@@ -47,59 +47,89 @@ def get_technical_data(symbol: str, period: str = "1y") -> dict:
 
     try:
         try:
-            import pandas_ta as ta
+            import ta
         except ImportError:
-            raise ImportError("pandas-ta not installed. Run: pip install pandas-ta")
+            raise ImportError("ta not installed. Run: pip install ta")
 
-        df = yf.download(ticker_sym, period=period, interval="1d", progress=False, auto_adjust=True)
+        import time
+        import requests
 
-        if df is None or df.empty:
-            # BSE fallback
-            ticker_sym_bo = ticker_sym.replace(".NS", ".BO")
-            df = yf.download(ticker_sym_bo, period=period, interval="1d", progress=False, auto_adjust=True)
-            if df.empty:
-                result["error"] = f"No price data found for {symbol}"
-                return result
-            result["ticker"] = ticker_sym_bo
+        interval = "5m" if period == "1d" else "15m" if period == "5d" else "1d"
+        interval_mins = 5 if period == "1d" else 15 if period == "5d" else 1440
+        
+        days_map = {"1d": 2, "5d": 6, "1mo": 35, "3mo": 100, "6mo": 200, "1y": 370, "2y": 740, "5y": 1850}
+        days = days_map.get(period, 370)
+        
+        end_time = int(time.time() * 1000)
+        start_time = end_time - (days * 24 * 60 * 60 * 1000)
+        
+        ticker_clean = ticker_sym.replace(".NS", "").replace(".BO", "")
+        url = f"https://groww.in/v1/api/charting_service/v2/chart/exchange/NSE/segment/CASH/{ticker_clean}?intervalInMinutes={interval_mins}&startTimeInMillis={start_time}&endTimeInMillis={end_time}"
+        
+        df = pd.DataFrame()
+        try:
+            res = requests.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=5)
+            if res.status_code == 200:
+                data = res.json()
+                if "candles" in data and data["candles"]:
+                    df = pd.DataFrame(data["candles"], columns=["timestamp", "Open", "High", "Low", "Close", "Volume"])
+                    # Groww timestamps are in seconds
+                    df["timestamp"] = pd.to_datetime(df["timestamp"], unit="s", utc=True).dt.tz_convert("Asia/Kolkata")
+                    df.set_index("timestamp", inplace=True)
+        except Exception as e:
+            logger.warning(f"Groww charting failed for {ticker_clean}: {e}")
 
-        # Flatten MultiIndex columns if present (yfinance sometimes returns them)
-        if isinstance(df.columns, pd.MultiIndex):
-            df.columns = df.columns.get_level_values(0)
+        if df.empty:
+            logger.info(f"Falling back to yfinance for {ticker_sym}")
+            df = yf.download(ticker_sym, period=period, interval=interval, progress=False, auto_adjust=True)
 
-        df = df.dropna()
-        df.index = pd.to_datetime(df.index)
+            if df is None or df.empty:
+                # BSE fallback
+                ticker_sym_bo = ticker_sym.replace(".NS", ".BO")
+                df = yf.download(ticker_sym_bo, period=period, interval=interval, progress=False, auto_adjust=True)
+                if df.empty:
+                    result["error"] = f"No price data found for {symbol}"
+                    return result
+                result["ticker"] = ticker_sym_bo
 
-        # ── Append indicators using pandas-ta ──────────────────────────────
+            # Flatten MultiIndex columns if present (yfinance sometimes returns them)
+            if isinstance(df.columns, pd.MultiIndex):
+                df.columns = df.columns.get_level_values(0)
+
+            df = df.dropna()
+            df.index = pd.to_datetime(df.index)
+            if df.index.tz is not None:
+                df.index = df.index.tz_convert("Asia/Kolkata")
+
+        # ── Append indicators using ta ──────────────────────────────
         # Moving averages
-        df["EMA_20"]  = ta.ema(df["Close"], length=20)
-        df["EMA_50"]  = ta.ema(df["Close"], length=50)
-        df["SMA_20"]  = ta.sma(df["Close"], length=20)
-        df["SMA_50"]  = ta.sma(df["Close"], length=50)
-        df["SMA_200"] = ta.sma(df["Close"], length=200)
+        df["EMA_20"]  = ta.trend.EMAIndicator(df["Close"], window=20).ema_indicator()
+        df["EMA_50"]  = ta.trend.EMAIndicator(df["Close"], window=50).ema_indicator()
+        df["SMA_20"]  = ta.trend.SMAIndicator(df["Close"], window=20).sma_indicator()
+        df["SMA_50"]  = ta.trend.SMAIndicator(df["Close"], window=50).sma_indicator()
+        df["SMA_200"] = ta.trend.SMAIndicator(df["Close"], window=200).sma_indicator()
 
         # Momentum
-        df["RSI_14"]  = ta.rsi(df["Close"], length=14)
+        df["RSI_14"]  = ta.momentum.RSIIndicator(df["Close"], window=14).rsi()
 
-        macd = ta.macd(df["Close"], fast=12, slow=26, signal=9)
-        if macd is not None and not macd.empty:
-            df["MACD"]        = macd.get("MACD_12_26_9")
-            df["MACD_signal"] = macd.get("MACDs_12_26_9")
-            df["MACD_hist"]   = macd.get("MACDh_12_26_9")
+        macd = ta.trend.MACD(df["Close"], window_slow=26, window_fast=12, window_sign=9)
+        df["MACD"]        = macd.macd()
+        df["MACD_signal"] = macd.macd_signal()
+        df["MACD_hist"]   = macd.macd_diff()
 
         # Volatility
-        df["ATR_14"] = ta.atr(df["High"], df["Low"], df["Close"], length=14)
+        df["ATR_14"] = ta.volatility.AverageTrueRange(df["High"], df["Low"], df["Close"], window=14).average_true_range()
 
-        bb = ta.bbands(df["Close"], length=20, std=2)
-        if bb is not None and not bb.empty:
-            df["BB_upper"] = bb.get("BBU_20_2.0")
-            df["BB_mid"]   = bb.get("BBM_20_2.0")
-            df["BB_lower"] = bb.get("BBL_20_2.0")
+        bb = ta.volatility.BollingerBands(df["Close"], window=20, window_dev=2)
+        df["BB_upper"] = bb.bollinger_hband()
+        df["BB_mid"]   = bb.bollinger_mavg()
+        df["BB_lower"] = bb.bollinger_lband()
 
         # Volume
         df["Volume_MA_20"] = df["Volume"].rolling(20).mean()
 
         # ── Serialise last 252 trading days (1 year) ──────────────────────
-        df_out = df.tail(252).copy()
+        df_out = df.copy()
 
         def f(val):
             """Float or None."""
@@ -112,7 +142,7 @@ def get_technical_data(symbol: str, period: str = "1y") -> dict:
         candles = []
         for idx, row in df_out.iterrows():
             candles.append({
-                "date":   idx.strftime("%Y-%m-%d"),
+                "date":   str(idx) if hasattr(idx, 'hour') else idx.strftime("%Y-%m-%d"),
                 "open":   f(row.get("Open")),
                 "high":   f(row.get("High")),
                 "low":    f(row.get("Low")),

@@ -15,8 +15,10 @@ import logging
 import json
 import re
 from typing import List
+from datetime import datetime, timedelta
 import feedparser
 import requests
+from dateutil import parser as date_parser
 
 logger = logging.getLogger("MoneyMattersAI.Stock.Sentiment")
 
@@ -38,10 +40,62 @@ RSS_FEEDS = [
         "name": "Business Standard",
         "url": "https://www.business-standard.com/rss/markets-106.rss",
     },
+    {
+        "name": "Google News India",
+        "url": "https://news.google.com/rss/search?q={query}+stock+india+when:30d&hl=en-IN&gl=IN&ceid=IN:en",
+    },
 ]
 
 GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
 GROQ_MODEL   = "llama3-8b-8192"   # free, fast, smart
+
+# Only show news from last 30 days
+MAX_NEWS_AGE_DAYS = 30
+
+
+def parse_date(date_str: str) -> datetime:
+    """Parse various date formats from RSS feeds"""
+    if not date_str:
+        return datetime.now()
+    
+    try:
+        # Try dateutil parser (handles most formats)
+        return date_parser.parse(date_str)
+    except:
+        try:
+            # Try common formats
+            for fmt in [
+                '%a, %d %b %Y %H:%M:%S %z',
+                '%Y-%m-%dT%H:%M:%S%z',
+                '%Y-%m-%d %H:%M:%S',
+                '%Y-%m-%d',
+            ]:
+                try:
+                    return datetime.strptime(date_str, fmt)
+                except:
+                    continue
+        except:
+            pass
+    
+    # Fallback to current time
+    return datetime.now()
+
+
+def is_recent_news(date_str: str, max_days: int = MAX_NEWS_AGE_DAYS) -> bool:
+    """Check if news is recent (within max_days)"""
+    try:
+        article_date = parse_date(date_str)
+        # Strip timezone information to allow safe subtraction
+        if article_date.tzinfo is not None:
+            article_date = article_date.replace(tzinfo=None)
+        
+        now = datetime.now()
+        
+        days_old = (now - article_date).days
+        # Check if it's within max_days (allow -2 for timezone forward slop)
+        return -2 <= days_old <= max_days
+    except Exception:
+        return False  # If we can't parse or subtract, discard it
 
 
 def get_sentiment(symbol: str, company_name: str = None) -> dict:
@@ -77,36 +131,61 @@ def get_sentiment(symbol: str, company_name: str = None) -> dict:
 
     # ── Collect articles from RSS feeds ───────────────────────────────────
     raw_articles = []
+    
     for feed_info in RSS_FEEDS:
         try:
-            feed = feedparser.parse(feed_info["url"])
+            # Format URL for Google News with search query
+            url = feed_info["url"]
+            if "{query}" in url:
+                query = company_name or bare_symbol
+                url = url.format(query=query.replace(" ", "+"))
+            
+            # Fetch with a strict 5-second timeout
+            resp = requests.get(url, timeout=5, headers={
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            })
+            feed = feedparser.parse(resp.content)
+            
             for entry in feed.entries[:30]:
                 title    = getattr(entry, "title", "") or ""
                 summary  = getattr(entry, "summary", "") or ""
                 link     = getattr(entry, "link", "") or ""
-                pub_date = getattr(entry, "published", "") or ""
+                pub_date = getattr(entry, "published", "") or getattr(entry, "pubDate", "") or ""
+                
+                # Skip if no date or too old
+                if not pub_date or not is_recent_news(pub_date):
+                    continue
 
                 combined = (title + " " + summary).lower()
                 if any(term in combined for term in search_terms):
+                    # Parse and format date
+                    parsed_date = parse_date(pub_date)
+                    formatted_date = parsed_date.strftime('%Y-%m-%d %H:%M')
+                    
                     raw_articles.append({
                         "title":   title.strip(),
                         "summary": re.sub(r"<[^>]+>", "", summary).strip()[:300],
                         "url":     link,
                         "source":  feed_info["name"],
-                        "date":    pub_date,
+                        "date":    formatted_date,
+                        "date_obj": parsed_date,  # For sorting
                         "sentiment":        None,
                         "sentiment_reason": None,
                     })
         except Exception as e:
             logger.warning(f"RSS fetch failed for {feed_info['name']}: {e}")
 
-    # Deduplicate by title, keep latest 10
+    # Sort by date (newest first) and deduplicate
+    raw_articles.sort(key=lambda x: x.get("date_obj", datetime.min), reverse=True)
+    
     seen_titles = set()
     articles = []
     for a in raw_articles:
         t = a["title"].lower()[:60]
         if t not in seen_titles:
             seen_titles.add(t)
+            # Remove date_obj before adding to final list
+            a.pop("date_obj", None)
             articles.append(a)
         if len(articles) >= 10:
             break
@@ -116,7 +195,7 @@ def get_sentiment(symbol: str, company_name: str = None) -> dict:
     if not articles:
         result["overall_label"] = "neutral"
         result["overall_score"] = 0.0
-        result["error"] = "No recent news found for this stock."
+        result["error"] = f"No recent news found for this stock in the last {MAX_NEWS_AGE_DAYS} days."
         return result
 
     # ── Score sentiment ────────────────────────────────────────────────────

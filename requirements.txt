@@ -1,18 +1,28 @@
+# ── Core API ─────────────────────────────────────────────────────────────
+fastapi>=0.110.0
+# uvicorn[standard] = uvloop + httptools on Linux → 2-3x faster async throughput
+uvicorn[standard]>=0.29.0
+python-multipart>=0.0.9
+python-dotenv>=1.0.0
+
+# ── ML / Analytics ────────────────────────────────────────────────────────
 pandas>=2.0.0
 scikit-learn>=1.3.0
 joblib>=1.3.0
-notebook>=7.0.0
-fastapi>=0.110.0
-uvicorn>=0.29.0
-python-multipart>=0.0.9
+
+# ── HTTP Clients ──────────────────────────────────────────────────────────
 httpx>=0.27.0
-python-dotenv>=1.0.0
+requests>=2.31.0
 
-# LLM dependencies (Moved to modal_app.py - Not needed for Render)
-
-# Stock Analysis dependencies
+# ── Stock Analysis ────────────────────────────────────────────────────────
 yfinance>=0.2.36
-pandas-ta
+pandas-ta-classic
 feedparser>=6.0.11
 beautifulsoup4>=4.12.0
-requests>=2.31.0
+python-dateutil>=2.8.2
+
+# ── Groq LLM (fast free-tier sentiment scoring) ───────────────────────────
+groq>=0.9.0
+
+# ── Dev / Notebook ────────────────────────────────────────────────────────
+notebook>=7.0.0

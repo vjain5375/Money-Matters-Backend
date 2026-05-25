@@ -11,19 +11,20 @@ Endpoints:
     GET  /health      -- Liveness probe (for deployment / uptime checks)
 
 Run locally:
-    uvicorn src.api:app --reload --host 0.0.0.0 --port 8000
+    uvicorn src.api:app --reload --host 0.0.0.0 --port 8001
 
 Swagger UI (auto-generated):
-    http://localhost:8000/docs
+    http://localhost:8001/docs
 
 ReDoc UI:
-    http://localhost:8000/redoc
+    http://localhost:8001/redoc
 """
 
 import os
 import sys
 import time
 import logging
+import asyncio
 from datetime import datetime
 
 # -- Resolve project root so imports work when running from any directory --
@@ -32,6 +33,7 @@ sys.path.insert(0, PROJECT_ROOT)
 
 from fastapi import FastAPI, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field, validator
 
@@ -74,21 +76,70 @@ app = FastAPI(
 )
 
 # -- CORS Middleware -------------------------------------------------------
-# Restricted origins for production security
-ALLOWED_ORIGINS = [
-    "http://localhost:5173",          # Local Dev (Vite default)
-    "https://moneymattersai.tech",    # Main Domain
-    "https://www.moneymattersai.tech",
-    "https://dashboard.moneymattersai.tech",
-]
+# Strategy:
+#   - If FRONTEND_URL is set in env → use strict origin whitelist (production mode)
+#   - If FRONTEND_URL is NOT set   → allow all origins (safe default, won't break existing deploys)
+#
+# To enable strict CORS on Render, add FRONTEND_URL env var in Render dashboard:
+#   FRONTEND_URL = https://your-app.vercel.app
+#   EXTRA_ORIGINS = https://other-domain.com  (optional, comma-separated)
+
+def _build_allowed_origins() -> list[str]:
+    """Build CORS whitelist from env vars. Returns empty list if FRONTEND_URL not set."""
+    frontend_url = os.getenv("FRONTEND_URL", "").strip()
+    if not frontend_url:
+        return []  # Signal: use allow_origins=["*"]
+
+    origins = set()
+
+    # Always include localhost for dev/testing
+    origins.update([
+        "http://localhost:3000",
+        "http://localhost:5173",
+        "http://127.0.0.1:3000",
+        "http://127.0.0.1:5173",
+    ])
+
+    # Primary frontend URL (Vercel, custom domain, etc.)
+    origins.add(frontend_url.rstrip("/"))
+
+    # Any additional origins (comma-separated)
+    extra = os.getenv("EXTRA_ORIGINS", "").strip()
+    if extra:
+        for o in extra.split(","):
+            o = o.strip().rstrip("/")
+            if o:
+                origins.add(o)
+
+    return sorted(origins)
+
+
+_allowed_origins = _build_allowed_origins()
+_use_strict_cors = bool(_allowed_origins)
+
+# If no FRONTEND_URL set, fallback to localhost origins for development to avoid Starlette ValueError
+if not _use_strict_cors:
+    _allowed_origins = [
+        "http://localhost:3000",
+        "http://localhost:5173",
+        "http://127.0.0.1:3000",
+        "http://127.0.0.1:5173",
+    ]
+    logger.warning("CORS: open dev mode (allowing localhost origins with credentials)")
+else:
+    logger.info(f"CORS: strict mode — {len(_allowed_origins)} allowed origins")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=ALLOWED_ORIGINS if os.getenv("ENV") == "production" else ["*"],
+    allow_origins=_allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# -- GZip Compression (60-80% smaller JSON responses over the wire) --------
+# Applied to all responses > 1KB — huge win for stock analysis payloads
+app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 
 # -- Register Stock Router ------------------------------------------------
@@ -106,10 +157,8 @@ else:
 @app.on_event("startup")
 async def preload_model():
     """
-    Load the ML model and TF-IDF vectorizer into memory at startup.
-
+    Load ML artifacts and warm up the stock market overview cache at startup.
     Pre-loading avoids cold-start latency on the first API request.
-    The artifacts are cached in predict.py's module-level variables.
     """
     logger.info("Pre-loading ML model and TF-IDF vectorizer...")
     try:
@@ -120,23 +169,52 @@ async def preload_model():
             f"Model not found: {e}\n"
             f"Please run 'python src/train_model.py' before starting the API."
         )
+
+    # Warm up market overview cache in background so first user hits cache
+    asyncio.create_task(_warm_up_caches())
     # Start keep-alive background task
-    import asyncio
     asyncio.create_task(keep_alive())
+
+
+async def _warm_up_caches():
+    """Pre-populate heavy caches at startup so first requests are instant."""
+    import httpx
+    await asyncio.sleep(5)  # Give the server 5s to fully start
+    try:
+        # RENDER_EXTERNAL_URL is set automatically by Render in production
+        # Falls back to localhost for local / Docker / other platforms
+        base_url = (
+            os.getenv("RENDER_EXTERNAL_URL")
+            or os.getenv("APP_BASE_URL")
+            or "http://localhost:8001"
+        ).rstrip("/")
+        async with httpx.AsyncClient(timeout=60) as client:
+            logger.info(f"Warming up market overview cache at {base_url}...")
+            await client.get(f"{base_url}/stock/market-overview")
+            logger.info("Market overview cache warmed up successfully.")
+    except Exception as e:
+        logger.warning(f"Cache warm-up skipped: {e}")
 
 
 async def keep_alive():
     """Ping /health every 10 minutes to prevent Render free tier from sleeping."""
     import httpx
-    import asyncio
     await asyncio.sleep(60)  # wait 1 min after startup
     while True:
         try:
-            # Use RENDER_EXTERNAL_URL or fallback to the current Render subdomain
-            render_url = os.getenv("RENDER_EXTERNAL_URL") or "https://money-matters-backend-pc4i.onrender.com"
+            # Determine base URL from env — works on Render, Railway, Fly.io, etc.
+            base_url = (
+                os.getenv("RENDER_EXTERNAL_URL")
+                or os.getenv("APP_BASE_URL")
+            )
+            if not base_url:
+                # No env var set — skip keep-alive (local dev doesn't need it)
+                await asyncio.sleep(600)
+                continue
+            base_url = base_url.rstrip("/")
             async with httpx.AsyncClient() as client:
-                await client.get(f"{render_url}/health", timeout=10)
-            logger.info(f"Keep-alive ping sent to {render_url}")
+                await client.get(f"{base_url}/health", timeout=10)
+            logger.info(f"Keep-alive ping sent to {base_url}")
         except Exception as e:
             logger.error(f"Keep-alive ping failed: {str(e)}")
         await asyncio.sleep(600)  # ping every 10 minutes
