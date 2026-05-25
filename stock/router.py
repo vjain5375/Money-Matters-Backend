@@ -155,10 +155,10 @@ async def predict_signal(ticker: str):
 
 # ── GET /stock/full/{ticker} ──────────────────────────────────────────────
 @router.get("/full/{ticker}", summary="All Data in One Call")
-async def full_analysis(ticker: str, period: str = Query("5y"), company_name: str = None):
+async def full_analysis(ticker: str, period: str = Query("1y"), company_name: str = None):
     """
     Combines fundamentals, technicals, and sentiment into one report.
-    Fetches data in parallel to reduce latency. Results cached for 3 min.
+    Fetches data in parallel to reduce latency. Results cached for 5 min.
     """
     symbol = _nse_symbol(ticker)
 

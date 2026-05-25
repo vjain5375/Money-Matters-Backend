@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: money-matters-backend
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    # 1 worker only — free tier has 512MB RAM; ML model + 2 workers = OOM crash
+    # Upgrade to paid tier before increasing workers
+    startCommand: uvicorn src.api:app --host 0.0.0.0 --port $PORT --timeout-keep-alive 30
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.11"
+      # All other env vars (ENV, GEMINI_API_KEY, FRONTEND_URL, etc.)
+      # are already set in the Render dashboard — do NOT duplicate here.
+      # RENDER_EXTERNAL_URL is injected automatically by Render.
