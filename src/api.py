@@ -101,7 +101,10 @@ def _build_allowed_origins() -> list[str]:
     ])
 
     # Primary frontend URL (Vercel, custom domain, etc.)
-    origins.add(frontend_url.rstrip("/"))
+    primary_origin = frontend_url.rstrip("/")
+    origins.add(primary_origin)
+    if primary_origin.startswith("https://") and not primary_origin.startswith("https://www."):
+        origins.add(primary_origin.replace("https://", "https://www."))
 
     # Any additional origins (comma-separated)
     extra = os.getenv("EXTRA_ORIGINS", "").strip()
