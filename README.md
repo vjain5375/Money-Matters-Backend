@@ -55,6 +55,8 @@ python -m src.predict "zomato dinner"
 ## 🗺 Roadmap
 
 - [x] Expense Classification Model
-- [ ] Personal Finance Analyzer
-- [ ] Stock Market Predictor
-- [ ] AI Financial Advisor (Fine-tuned LLM)
+- [x] Personal Finance Analyzer
+- [x] Stock Market Predictor
+- [x] AI Financial Advisor (Fine-tuned LLM)
+- [ ] Chatbot
+- [ ] Stock Advisor
