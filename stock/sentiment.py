@@ -47,7 +47,7 @@ RSS_FEEDS = [
 ]
 
 GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
-GROQ_MODEL   = "llama3-8b-8192"   # free, fast, smart
+GROQ_MODEL   = "llama-3.1-8b-instant"   # Updated model (llama3-8b-8192 decommissioned)
 
 # Only show news from last 30 days
 MAX_NEWS_AGE_DAYS = 30
