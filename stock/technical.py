@@ -66,31 +66,75 @@ def get_technical_data(symbol: str, period: str = "1y") -> dict:
         ticker_clean = ticker_sym.replace(".NS", "").replace(".BO", "")
         url = f"https://groww.in/v1/api/charting_service/v2/chart/exchange/NSE/segment/CASH/{ticker_clean}?intervalInMinutes={interval_mins}&startTimeInMillis={start_time}&endTimeInMillis={end_time}"
         
+        logger.info(f"Fetching technical data for {ticker_sym} (period={period})")
         df = pd.DataFrame()
+        
+        # Try Groww API first (fastest for Indian stocks)
         try:
-            res = requests.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=5)
+            logger.info(f"Attempting Groww API for {ticker_clean}...")
+            res = requests.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=10)
+            logger.info(f"Groww API response status: {res.status_code}")
             if res.status_code == 200:
                 data = res.json()
                 if "candles" in data and data["candles"]:
+                    logger.info(f"Groww API returned {len(data['candles'])} candles")
                     df = pd.DataFrame(data["candles"], columns=["timestamp", "Open", "High", "Low", "Close", "Volume"])
                     # Groww timestamps are in seconds
                     df["timestamp"] = pd.to_datetime(df["timestamp"], unit="s", utc=True).dt.tz_convert("Asia/Kolkata")
                     df.set_index("timestamp", inplace=True)
+                else:
+                    logger.warning(f"Groww API returned no candles for {ticker_clean}")
+            else:
+                logger.warning(f"Groww API returned status {res.status_code}")
         except Exception as e:
-            logger.warning(f"Groww charting failed for {ticker_clean}: {e}")
+            logger.error(f"Groww charting failed for {ticker_clean}: {e}", exc_info=True)
 
+        # Fallback to yfinance with multiple attempts
         if df.empty:
-            logger.info(f"Falling back to yfinance for {ticker_sym}")
-            df = yf.download(ticker_sym, period=period, interval=interval, progress=False, auto_adjust=True)
+            logger.info(f"Falling back to yfinance for {ticker_sym} (period={period}, interval={interval})")
+            
+            # Try NSE first
+            for attempt in range(2):
+                try:
+                    logger.info(f"yfinance NSE attempt {attempt + 1}/2")
+                    ticker_obj = yf.Ticker(ticker_sym)
+                    df = ticker_obj.history(period=period, interval=interval, auto_adjust=True)
+                    if not df.empty:
+                        logger.info(f"yfinance NSE returned {len(df)} rows for {ticker_sym}")
+                        break
+                    else:
+                        logger.warning(f"yfinance NSE returned empty dataframe (attempt {attempt + 1})")
+                except Exception as e:
+                    logger.error(f"yfinance NSE attempt {attempt + 1} failed: {e}")
+                    if attempt == 0:
+                        time.sleep(1)  # Wait 1 second before retry
 
-            if df is None or df.empty:
-                # BSE fallback
+            # BSE fallback if NSE failed
+            if df.empty:
+                logger.info(f"Trying BSE fallback for {ticker_sym}")
                 ticker_sym_bo = ticker_sym.replace(".NS", ".BO")
-                df = yf.download(ticker_sym_bo, period=period, interval=interval, progress=False, auto_adjust=True)
-                if df.empty:
-                    result["error"] = f"No price data found for {symbol}"
-                    return result
-                result["ticker"] = ticker_sym_bo
+                
+                for attempt in range(2):
+                    try:
+                        logger.info(f"yfinance BSE attempt {attempt + 1}/2")
+                        ticker_obj = yf.Ticker(ticker_sym_bo)
+                        df = ticker_obj.history(period=period, interval=interval, auto_adjust=True)
+                        if not df.empty:
+                            logger.info(f"yfinance BSE returned {len(df)} rows for {ticker_sym_bo}")
+                            result["ticker"] = ticker_sym_bo
+                            break
+                        else:
+                            logger.warning(f"yfinance BSE returned empty dataframe (attempt {attempt + 1})")
+                    except Exception as e:
+                        logger.error(f"yfinance BSE attempt {attempt + 1} failed: {e}")
+                        if attempt == 0:
+                            time.sleep(1)
+                    
+            if df.empty:
+                error_msg = f"No price data found for {symbol} from any source (Groww, yfinance NSE, yfinance BSE). This may be due to network restrictions or invalid ticker."
+                logger.error(error_msg)
+                result["error"] = error_msg
+                return result
 
             # Flatten MultiIndex columns if present (yfinance sometimes returns them)
             if isinstance(df.columns, pd.MultiIndex):
